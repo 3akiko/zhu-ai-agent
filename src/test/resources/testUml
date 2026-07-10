@@ -1,0 +1,27 @@
+@startuml _______
+skinparam usecaseFontSize 14
+skinparam usecaseStereotypeFontSize 12
+skinparam hexagonFontSize 14
+skinparam hexagonStereotypeFontSize 12
+title "条件分支工作流"
+footer
+
+powered by spring-ai-alibaba
+end footer
+circle start<<input>> as __START__
+circle stop as __END__
+usecase "input"<<Node>>
+usecase "validate"<<Node>>
+usecase "process"<<Node>>
+usecase "error"<<Node>>
+hexagon "check state" as condition1<<Condition>>
+"__START__" -down-> "input"
+"input" -down-> "validate"
+"validate" .down.> "condition1"
+"condition1" .down.> "process"
+'"validate" .down.> "process"
+"condition1" .down.> "error"
+'"validate" .down.> "error"
+"process" -down-> "__END__"
+"error" -down-> "__END__"
+@enduml

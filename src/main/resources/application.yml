@@ -2,13 +2,23 @@ spring:
   ai:
     dashscope:
       api-key: ${DASHSCOPE_API_KEY}
+      embedding:
+        options:
+          model: text-embedding-v4
+          dimensions: 1536             # ← 传给 DashScope API parameters，v4 下 starter 1.1.2.3 可能还映射成 output_dim？不确定就两个都试
+          text-type: document         # ← v4 新增，可选 query/document，RAG 入库用 document，检索用 query
     ollama:
       base-url: http://localhost:11434
-
+      chat:
+        model: qwen3.5:4b
   application:
     name: zhu-ai-agent
   profiles:
     active: local
+  servlet:
+    multipart:
+      max-file-size: 50MB   # 单个文件最大大小
+      max-request-size: 100MB # 整个请求（含多文件）最大大小
 
 
 #启动配置
@@ -35,3 +45,16 @@ knife4j:
   enable: true
   setting:
     language: zh_cn
+
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: auto
+  configuration:
+    map-underscore-to-camel-case: true
+
+
+# 修改日志级别，查看 Spring AI 更多调用细节
+logging:
+  level:
+    org.springframework.ai: DEBUG
