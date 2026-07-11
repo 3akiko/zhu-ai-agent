@@ -1,11 +1,16 @@
 package com.zhubao.zhuaiagent.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knuddels.jtokkit.api.EncodingType;
+import com.zhubao.zhuaiagent.rag.ObservedHybridVectorStore;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.embedding.BatchingStrategy;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.TokenCountBatchingStrategy;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,22 +38,43 @@ public class PgVectorVectorStoreConfig {
         );
     }
 
+//    @Bean
+//    public VectorStore pgVectorVectorStore(JdbcTemplate jdbcTemplate, EmbeddingModel dashscopeEmbeddingModel,
+//                                           BatchingStrategy batchingStrategy) {
+//        VectorStore vectorStore = PgVectorStore.builder(jdbcTemplate, dashscopeEmbeddingModel)
+//                .schemaName("public")                  // 默认 public，显式写出
+//                .vectorTableName("rag_vector_store")     // 用你之前设计的表名，不是默认 vector_store
+//                .idType(PgVectorStore.PgIdType.BIGSERIAL)            // 你 document_chunk.id 是 BIGSERIAL
+//                .dimensions(1536)                      // embedding 维度
+//                .distanceType(COSINE_DISTANCE)         // 归一化向量用余弦
+//                .indexType(HNSW)                       // HNSW，默认 m=16
+//                .initializeSchema(false)               // ⚠️ 你表已手动建好（含 content_tsv + GIN），设 false
+//                .removeExistingVectorStoreTable(false) // 生产千万别 true
+//                .vectorTableValidationsEnabled(false)   // 表结构你自己管，不校验
+//                .maxDocumentBatchSize(1000)            // 你 /upload 接口分批用
+//                .batchingStrategy(batchingStrategy)    // 上面那个 TokenCountBatchingStrategy
+//                .build();
+//        return vectorStore;
+//    }
+
     @Bean
-    public VectorStore pgVectorVectorStore(JdbcTemplate jdbcTemplate, EmbeddingModel dashscopeEmbeddingModel,
-                                           BatchingStrategy batchingStrategy) {
-        VectorStore vectorStore = PgVectorStore.builder(jdbcTemplate, dashscopeEmbeddingModel)
-                .schemaName("public")                  // 默认 public，显式写出
-                .vectorTableName("rag_vector_store")     // 用你之前设计的表名，不是默认 vector_store
-                .idType(PgVectorStore.PgIdType.BIGSERIAL)            // 你 document_chunk.id 是 BIGSERIAL
-                .dimensions(1536)                      // embedding 维度
-                .distanceType(COSINE_DISTANCE)         // 归一化向量用余弦
-                .indexType(HNSW)                       // HNSW，默认 m=16
-                .initializeSchema(false)               // ⚠️ 你表已手动建好（含 content_tsv + GIN），设 false
-                .removeExistingVectorStoreTable(false) // 生产千万别 true
-                .vectorTableValidationsEnabled(false)   // 表结构你自己管，不校验
-                .maxDocumentBatchSize(1000)            // 你 /upload 接口分批用
-                .batchingStrategy(batchingStrategy)    // 上面那个 TokenCountBatchingStrategy
+    public ObservedHybridVectorStore observedHybridVectorStore(
+            JdbcTemplate jdbcTemplate,
+            @Qualifier("dashscopeEmbeddingModel") EmbeddingModel embeddingModel,
+            @Value("${rag.vector.table-name:rag_vector_store}") String tableName,
+            @Value("${rag.vector.schema-name:public}") String schemaName,
+            @Value("${rag.vector.dimensions:1536}") int dimensions,
+            @Value("${rag.vector.distance-type:COSINE_DISTANCE}") String distanceTypeStr) {
+
+        ObservedHybridVectorStore.PgDistanceType distanceType =
+                ObservedHybridVectorStore.PgDistanceType.valueOf(distanceTypeStr.toUpperCase());
+
+        return ObservedHybridVectorStore.builder(jdbcTemplate, embeddingModel)
+                .tableName(tableName)
+                .schemaName(schemaName)
+                .dimensions(dimensions)
+                .distanceType(distanceType)
                 .build();
-        return vectorStore;
     }
+
 }

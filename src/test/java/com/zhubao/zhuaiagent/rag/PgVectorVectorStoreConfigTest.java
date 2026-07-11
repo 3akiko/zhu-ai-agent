@@ -1,8 +1,11 @@
 package com.zhubao.zhuaiagent.rag;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.util.JacksonUtils;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.pgvector.PgVectorStore;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +20,8 @@ class PgVectorVectorStoreConfigTest {
 
     @Resource
     private VectorStore vectorStore;
+
+    ObjectMapper mapper = new ObjectMapper();
 
     @Test
     public void testAdd() {
@@ -36,6 +41,14 @@ class PgVectorVectorStoreConfigTest {
                 "Java ⾥创建线程池，最核⼼的⽅式就是通过 ThreadPoolExecutor 构造函数来搞，其他都是它的封装。", Map.of("source", "user-input"));
  //       vectorStore.add(List.of(textDoc));
     }
+
+    @Test
+    public void similaritySearch() throws JsonProcessingException {
+        List<Document> documents = vectorStore.similaritySearch("JDK工具？");
+        System.out.println(mapper.writeValueAsString(documents));
+
+    }
+
 
 
 }

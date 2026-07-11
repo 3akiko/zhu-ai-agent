@@ -13,14 +13,14 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/upload")
 @Slf4j
 public class PdfUploadController {
 
     @Autowired
     private PdfUploadService pdfUploadService;
 
-    @PostMapping("/upload")
+    @PostMapping("/add")
     public ResponseEntity<ApiResponse<Map<String, Object>>> uploadPdf(
             @RequestParam("file") MultipartFile file,
             @RequestHeader("X-User-Id") String userId) {

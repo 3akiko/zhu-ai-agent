@@ -20,6 +20,15 @@ spring:
       max-file-size: 50MB   # 单个文件最大大小
       max-request-size: 100MB # 整个请求（含多文件）最大大小
 
+#自实现
+rag:
+  vector:
+    table-name: rag_vector_store
+    schema-name: public
+    dimensions: 1536
+    distance-type: COSINE_DISTANCE   # 可选：COSINE_DISTANCE, EUCLIDEAN_DISTANCE, NEGATIVE_INNER_PRODUCT
+
+
 
 #启动配置
 server:

@@ -31,4 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+##个人文件
 /src/main/resources/application-local.yml
+tmp/
