@@ -81,24 +81,29 @@ public class PdfUploadService {
         Long fileMetadataId = meta.getId();
 
         // 5. 使用 PDFBox 提取文本
-        List<String> questions;
+        List<PdfParserUtil.QuestionChunk> questions;
         try (PDDocument document = Loader.loadPDF(new File(storedPath))) {
             questions = pdfParserUtil.splitByQuestions(document);
         }
 
-
-        // 7. 对每道题按 token 精确分块（maxTokens=1024, overlapTokens=128）
+        // 6、在 uploadPdf 方法中，修改分块循环
         List<String> allChunks = new ArrayList<>();
-        for (String question : questions) {
-            List<String> subChunks = pdfParserUtil.splitQuestionIntoChunks(question, 1024, 128);
-            allChunks.addAll(subChunks);
+        List<String> allSourceUrls = new ArrayList<>(); // 记录每个 chunk 对应的 sourceUrl
+
+        for (PdfParserUtil.QuestionChunk question : questions) {
+            //切分，加上url
+            List<String> subChunks = pdfParserUtil.splitQuestionIntoChunks(question.getText(), 1024, 128);
+            for (String chunk : subChunks) {
+                allChunks.add(chunk);
+                allSourceUrls.add(question.getSourceUrl()); // 每个子 chunk 继承题目的 sourceUrl
+            }
         }
 
         // 8. 批量向量化
         List<float[]> embeddings = batchEmbed(allChunks, 10);
 
         // 9. 批量插入 rag_vector_store
-        batchInsertChunks(fileMetadataId, allChunks, embeddings);
+        batchInsertChunks(fileMetadataId, allChunks, embeddings, allSourceUrls, file.getOriginalFilename());
 
         // 10. 更新 file_metadata 的 chunk_count
         fileMetadataService.lambdaUpdate()
@@ -143,9 +148,9 @@ public class PdfUploadService {
         log.info("已删除旧文件关联数据，fileMetadataId = {}", oldFileMetadataId);
     }
 
-    private void batchInsertChunks(Long fileMetadataId, List<String> contents, List<float[]> embeddings) {
+    private void batchInsertChunks(Long fileMetadataId, List<String> contents, List<float[]> embeddings,
+                                   List<String> sourceUrls, String filename) {
         String sql = "INSERT INTO rag_vector_store (file_metadata_id, content, embedding, metadata) VALUES (?, ?, ?::vector, ?::jsonb)";
-
         jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
             @Override
             public void setValues(PreparedStatement ps, int i) throws SQLException {
@@ -155,13 +160,14 @@ public class PdfUploadService {
                 Map<String, Object> meta = new HashMap<>();
                 meta.put("chunkIndex", i);
                 meta.put("source", "pdf-upload");
+                meta.put("filename", filename);
+                if (sourceUrls != null && i < sourceUrls.size() && sourceUrls.get(i) != null) {
+                    meta.put("sourceUrl", sourceUrls.get(i));
+                }
                 ps.setString(4, toJson(meta));
             }
-
             @Override
-            public int getBatchSize() {
-                return contents.size();
-            }
+            public int getBatchSize() { return contents.size(); }
         });
     }
 

@@ -1,11 +1,14 @@
 package com.zhubao.zhuaiagent.util;
 
+import com.google.common.collect.Lists;
 import com.knuddels.jtokkit.Encodings;
 import com.knuddels.jtokkit.api.Encoding;
 import com.knuddels.jtokkit.api.EncodingRegistry;
 import com.knuddels.jtokkit.api.EncodingType;
 import com.knuddels.jtokkit.api.IntArrayList;
 import jakarta.annotation.Resource;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Component
@@ -26,17 +30,82 @@ public class PdfParserUtil {
     private PdfLinkExtractor pdfLinkExtractor;
 
 
-    public List<String> splitByQuestions(PDDocument document) throws IOException {
-        // 1. 提取全文文本
+    public List<QuestionChunk> splitByQuestions(PDDocument document) throws IOException {
         PDFTextStripper stripper = new PDFTextStripper();
         String fullText = stripper.getText(document);
 
-        // 2. 提取超链接锚点
         List<PdfLinkExtractor.LinkAnchor> anchors = pdfLinkExtractor.extractLinkAnchors(document);
 
-        // 3. 按锚点切分题目
-        return pdfLinkExtractor.splitByLinkAnchors(fullText, anchors);
+        // 筛选题目锚点：必须是题目标题且有有效 URI
+        List<PdfLinkExtractor.LinkAnchor> questionAnchors = anchors.stream()
+                .filter(a -> pdfLinkExtractor.isQuestionTitle(a.text()))
+                .filter(a -> isValidSourceUrl(a.uri()))
+                .sorted(Comparator.comparingInt(a -> fullText.indexOf(a.text())))
+                .toList();
+
+        if (questionAnchors.size() < 5) {
+            log.warn("锚点很少，进行兜底拆分");
+            return Lists.newArrayList(new QuestionChunk(fullText, null));
+        }
+
+        List<QuestionChunk> chunks = new ArrayList<>();
+
+        // 从第二个锚点开始，取上一个锚点到当前锚点之间的内容
+        for (int i = 1; i < questionAnchors.size(); i++) {
+            PdfLinkExtractor.LinkAnchor prevAnchor = questionAnchors.get(i - 1);
+            PdfLinkExtractor.LinkAnchor currAnchor = questionAnchors.get(i);
+
+            int prevPos = fullText.indexOf(prevAnchor.text());
+            int currPos = fullText.indexOf(currAnchor.text(), prevPos);
+            if (prevPos < 0 || currPos < 0) continue;
+
+            String segment = fullText.substring(prevPos, currPos).trim();
+            // 过滤过短的碎片（如推广信息）
+            if (segment.length() > 50) {  // 阈值可根据实际情况调整
+                chunks.add(new QuestionChunk(segment, prevAnchor.uri()));
+            }
+        }
+
+        // 最后一个锚点之后的内容（包含最后一个锚点本身）
+        PdfLinkExtractor.LinkAnchor lastAnchor = questionAnchors.get(questionAnchors.size() - 1);
+        int lastPos = fullText.indexOf(lastAnchor.text());
+        if (lastPos >= 0) {
+            String lastSegment = fullText.substring(lastPos).trim();
+            if (lastSegment.length() > 50) {
+                chunks.add(new QuestionChunk(lastSegment, lastAnchor.uri()));
+            }
+        }
+
+        return chunks;
     }
+
+    /**
+     * 判断 URI 是否有效（不为空且不是推广链接）
+     */
+    private boolean isValidSourceUrl(String uri) {
+        if (uri == null || uri.isBlank()) return false;
+        // 过滤推广链接，如 https://www.mianshiya.com/
+        if (uri.equals("https://www.mianshiya.com/") || uri.equals("https://www.mianshiya.com")) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * 兜底方案，将大文本当成一个题目进行才分
+     * @param fullText
+     * @return
+     */
+    private List<QuestionChunk> fallbackSplit(String fullText) {
+        // 将整个文本视为一个大题目，用 splitQuestionIntoChunks 分块
+        List<String> chunks = splitQuestionIntoChunks(fullText, 1024, 128);
+        return chunks.stream()
+                .filter(chunk -> chunk.length() > 50)
+                .map(chunk -> new QuestionChunk(chunk, null))
+                .toList();
+    }
+
+
 
 
     /**
@@ -118,4 +187,18 @@ public class PdfParserUtil {
         // decode 接收 IntArrayList 原生类型
         return ENCODING.decode(lastTokens);
     }
+
+    @Getter
+    @Setter
+    public static class QuestionChunk {
+        private String text;
+        private String sourceUrl;
+
+        public QuestionChunk(String text, String sourceUrl) {
+            this.text = text;
+            this.sourceUrl = sourceUrl;
+        }
+    }
+
+
 }

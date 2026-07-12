@@ -118,11 +118,11 @@ public class PdfLinkExtractor {
     /**
      * 判断一段文本是否为题目标题（包含问号，或以疑问词开头）
      */
-    private boolean isQuestionTitle(String text) {
+    public boolean isQuestionTitle(String text) {
         if (text == null || text.isBlank()) return false;
         // 过滤推广链接
         if (text.contains("推荐") || text.contains("简历") || text.contains("面试鸭")
-                || text.contains("编程导航") || text.contains("AI资源")) {
+                || text.contains("编程导航") || text.contains("AI资源") || text.contains("学编程") ) {
             return false;
         }
         // 过滤过短的文本（如页码、页脚）

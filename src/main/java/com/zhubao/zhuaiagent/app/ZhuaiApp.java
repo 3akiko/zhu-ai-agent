@@ -2,27 +2,44 @@ package com.zhubao.zhuaiagent.app;
 
 
 import com.zhubao.zhuaiagent.advisor.MyLoggerAdvisor;
+import com.zhubao.zhuaiagent.advisor.ReferenceEmitAdvisor;
+import com.zhubao.zhuaiagent.constant.FileConstant;
+import com.zhubao.zhuaiagent.entity.RagResponse;
+import com.zhubao.zhuaiagent.entity.RagStreamEvent;
+import com.zhubao.zhuaiagent.entity.RagStreamEventType;
+import com.zhubao.zhuaiagent.entity.Reference;
 import com.zhubao.zhuaiagent.memory.FileBasedChatMemory;
 import com.zhubao.zhuaiagent.rag.QueryRewriter;
+import com.zhubao.zhuaiagent.util.JsonUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.rag.Query;
+import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 @Component
 @Slf4j
 public class ZhuaiApp {
 
     private final ChatClient chatClient;
+
+    private final RetrievalAugmentationAdvisor ragAdvisor;
+
+    private final ReferenceEmitAdvisor refAdvisor;
 
     private static final String SYSTEM_PROMPT = """
             你是一位资深的 Java 面试辅导专家，精通 Java 核心技术、并发编程、JVM、Spring 框架等。
@@ -36,7 +53,7 @@ public class ZhuaiApp {
      *
      * @param dashScopeChatModel 注入的 DashScope ChatModel
      */
-    public ZhuaiApp(ChatModel dashScopeChatModel) {
+    public ZhuaiApp(ChatModel dashScopeChatModel, VectorStore hybridVectorStore) {
         // 初始化基于文件的对话记忆（也可切换到内存模式）
         String fileDir = System.getProperty("user.dir") + "/tmp/chat-memory";
         ChatMemory chatMemory = new FileBasedChatMemory(fileDir);
@@ -45,6 +62,17 @@ public class ZhuaiApp {
         //         .chatMemoryRepository(new InMemoryChatMemoryRepository())
         //         .maxMessages(20)
         //         .build();
+
+        ragAdvisor = RetrievalAugmentationAdvisor.builder()
+                .documentRetriever(new VectorStoreDocumentRetriever(hybridVectorStore, 0.6, 3, null))
+                .queryTransformers(query -> {
+                    String rewritten = queryRewriter.doQueryRewrite(query.text());
+                    return Query.builder().text(rewritten).build();
+                })
+                .build();
+
+        // 引用前置 Advisor（order 要在 ragAdvisor 之后，ragAdvisor 默认 order 0）
+        refAdvisor = new ReferenceEmitAdvisor(1);
 
         chatClient = ChatClient.builder(dashScopeChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
@@ -123,41 +151,57 @@ public class ZhuaiApp {
     /**
      * 带 RAG 知识库的对话（非流式）
      */
-    public String doChatWithRag(String message, String chatId) {
-        // 查询重写，提高检索质量
-        String rewritten = queryRewriter.doQueryRewrite(message);
-        log.debug("原始查询: {}, 重写后: {}", message, rewritten);
-
-        ChatResponse response = chatClient
-                .prompt()
-                .user(rewritten)
-                .advisors(spec -> {
-                    spec.param(ChatMemory.CONVERSATION_ID, chatId);
-                })
-                .advisors(new MyLoggerAdvisor())
-                .advisors(QuestionAnswerAdvisor.builder(hybridVectorStore).build())
+    public RagResponse doChatWithRag(String message, String chatId) {
+        ChatResponse response = chatClient.prompt()
+                .system(SYSTEM_PROMPT + "\n\n请根据参考资料回答问题。")
+                .user(message)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                .advisors(ragAdvisor, refAdvisor)
                 .call()
                 .chatResponse();
+
+        // 从 metadata 中提取 references
+        List<Reference> references = Collections.emptyList();
+        Object ragEvent = response.getMetadata().get(FileConstant.RAG_EVENT);
+        if (ragEvent instanceof RagStreamEvent e && RagStreamEventType.REFERENCES.equals(e.type())) {
+            references = (List<Reference>) e.data();
+        }
+
+        // 获取答案文本
         String content = response.getResult().getOutput().getText();
-        log.info("doChatWithRag response: {}", content);
-        return content;
+        RagResponse ragResponse = new RagResponse(content, references);
+        log.info("doChatWithRag ragResponse: {}", JsonUtils.toJson(ragResponse));
+        return ragResponse;
     }
 
     /**
      * 带 RAG 知识库的对话（流式 SSE）
      */
-    public Flux<String> doChatWithRagStream(String message, String chatId) {
-        String rewritten = queryRewriter.doQueryRewrite(message);
-        log.debug("原始查询: {}, 重写后: {}", message, rewritten);
+    public Flux<RagStreamEvent> doChatWithRagStream(String message, String chatId) {
+        // RAG Advisor：用你的混合检索 VectorStore,、
 
         return chatClient
                 .prompt()
-                .user(rewritten)
+                .system(SYSTEM_PROMPT + "\n\n请根据参考资料回答问题。")
+                .user(message)
                 .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
-                .advisors(new MyLoggerAdvisor())
-                .advisors(QuestionAnswerAdvisor.builder(hybridVectorStore).build())
+                .advisors(ragAdvisor, refAdvisor)
                 .stream()
-                .content();
+                .chatClientResponse().flatMap(resp -> {
+                    // 判断是否是引用事件（来自 ReferenceEmitAdvisor）
+                    Object ragEvent = resp.chatResponse().getMetadata().get(FileConstant.RAG_EVENT);
+                    if (ragEvent instanceof RagStreamEvent) {
+                        log.info("doChatWithRag, rag event resp: {}", JsonUtils.toJson(ragEvent));
+                        return Flux.just((RagStreamEvent) ragEvent);
+                    }
+
+                    // LLM 正文 delta
+                    log.info("doChatWithRag response: {}", JsonUtils.toJson(resp));
+                    String text = resp.chatResponse().getResult().getOutput().getText();
+                    String delta = text != null ? text : "";
+                    return Flux.just(RagStreamEvent.delta( delta));
+                })
+                .concatWithValues(RagStreamEvent.done());
     }
 
     // ==================== 预留工具调用（暂不实现） ====================

@@ -67,3 +67,4 @@ mybatis-plus:
 logging:
   level:
     org.springframework.ai: DEBUG
+    com.zhubao.zhuaiagent: DEBUG

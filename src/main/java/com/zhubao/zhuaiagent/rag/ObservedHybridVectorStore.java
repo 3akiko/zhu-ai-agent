@@ -105,7 +105,7 @@ public class ObservedHybridVectorStore extends AbstractObservationVectorStore {
         // 4. 按相似度阈值过滤
         if (similarityThreshold > 0) {
             results = results.stream()
-                    .filter(doc -> (double) doc.getMetadata().getOrDefault("rrf_score", 0.0) >= similarityThreshold)
+                    .filter(doc -> (double) doc.getMetadata().getOrDefault("vec_score", 0.0) >= similarityThreshold)
                     .collect(Collectors.toList());
         }
 

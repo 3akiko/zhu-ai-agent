@@ -2,9 +2,12 @@ package com.zhubao.zhuaiagent.controller;
 
 import com.zhubao.zhuaiagent.app.ZhuaiApp;
 import com.zhubao.zhuaiagent.common.ApiResponse;
+import com.zhubao.zhuaiagent.entity.RagResponse;
+import com.zhubao.zhuaiagent.entity.RagStreamEvent;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -44,18 +47,21 @@ public class ChatController {
     // ==================== RAG 对话（非流式） ====================
 
     @PostMapping("/rag")
-    public ApiResponse<String> ragChat(@RequestBody ChatRequest request) {
-        String result = zhuaiApp.doChatWithRag(request.message(), request.chatId());
+    public ApiResponse<RagResponse> ragChat(@RequestBody ChatRequest request) {
+        RagResponse result = zhuaiApp.doChatWithRag(request.message(), request.chatId());
         return ApiResponse.success(result);
     }
 
     // ==================== RAG 对话（流式） ====================
 
+    // ==================== 流式 RAG（SSE，带引用） ====================
     @PostMapping(value = "/rag/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ApiResponse<String>> ragChatStream(@RequestBody ChatRequest request) {
+    public Flux<ServerSentEvent<RagStreamEvent>> ragChatStream(@RequestBody ChatRequest request) {
         return zhuaiApp.doChatWithRagStream(request.message(), request.chatId())
-                .map(ApiResponse::delta)
-                .concatWithValues(ApiResponse.done());
+                .map(event -> ServerSentEvent.<RagStreamEvent>builder()
+                        .event(event.type().getValue())   // "references" / "delta" / "done"
+                        .data(event)
+                        .build());
     }
 
     // ==================== 请求体 DTO ====================
