@@ -3,6 +3,7 @@ package com.zhubao.zhuaiagent.memory;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import lombok.extern.slf4j.Slf4j;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
@@ -17,6 +18,7 @@ import java.util.List;
 /**
  * 基于文件持久化的对话记忆
  */
+@Slf4j
 public class FileBasedChatMemory implements ChatMemory {
 
     private final String BASE_DIR;

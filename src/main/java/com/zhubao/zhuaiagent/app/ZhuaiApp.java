@@ -9,14 +9,12 @@ import com.zhubao.zhuaiagent.entity.RagStreamEvent;
 import com.zhubao.zhuaiagent.entity.RagStreamEventType;
 import com.zhubao.zhuaiagent.entity.Reference;
 import com.zhubao.zhuaiagent.memory.FileBasedChatMemory;
-import com.zhubao.zhuaiagent.rag.QueryRewriter;
+import com.zhubao.zhuaiagent.rag.impl.LLMQueryRewriter;
 import com.zhubao.zhuaiagent.util.JsonUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -29,7 +27,6 @@ import reactor.core.publisher.Flux;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 @Component
 @Slf4j
@@ -66,8 +63,10 @@ public class ZhuaiApp {
         ragAdvisor = RetrievalAugmentationAdvisor.builder()
                 .documentRetriever(new VectorStoreDocumentRetriever(hybridVectorStore, 0.6, 3, null))
                 .queryTransformers(query -> {
-                    String rewritten = queryRewriter.doQueryRewrite(query.text());
-                    return Query.builder().text(rewritten).build();
+                    String rewritten = llmQueryRewriter.doQueryRewrite(query.text(), query.history());
+                    return Query.builder().text(rewritten)
+                            .context(query.context())
+                            .history(query.history()).build();
                 })
                 .build();
 
@@ -146,7 +145,7 @@ public class ZhuaiApp {
     private VectorStore hybridVectorStore;  // 你的 ObservedHybridVectorStore
 
     @Resource
-    private QueryRewriter queryRewriter;
+    private LLMQueryRewriter llmQueryRewriter;
 
     /**
      * 带 RAG 知识库的对话（非流式）

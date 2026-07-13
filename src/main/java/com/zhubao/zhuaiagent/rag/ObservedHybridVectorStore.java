@@ -196,7 +196,9 @@ public class ObservedHybridVectorStore extends AbstractObservationVectorStore {
     }
 
     private Long extractFileMetadataId(Object filterExpression) {
-        if (filterExpression == null) return null;
+        if (filterExpression == null) {
+            return null;
+        }
         String exprStr = filterExpression.toString();
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
                 "fileMetadataId\\s*(==|=)\\s*(\\d+)"
@@ -247,6 +249,7 @@ public class ObservedHybridVectorStore extends AbstractObservationVectorStore {
             return this;
         }
 
+        @Override
         public ObservedHybridVectorStore build() {
             // 校验必要参数
             if (this.jdbcTemplate == null) {
