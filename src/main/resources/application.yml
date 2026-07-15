@@ -8,13 +8,13 @@ spring:
           dimensions: 1536             # ← 传给 DashScope API parameters，v4 下 starter 1.1.2.3 可能还映射成 output_dim？不确定就两个都试
           text-type: document         # ← v4 新增，可选 query/document，RAG 入库用 document，检索用 query
     ollama:
-      base-url: http://localhost:11434
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       chat:
-        model: qwen3.5:4b
+        model: ${OLLAMA_CHAT_MODEL:qwen3.5:4b}
   application:
     name: zhu-ai-agent
   profiles:
-    active: local
+    active: ${SPRING_PROFILES_ACTIVE:local}
   servlet:
     multipart:
       max-file-size: 50MB   # 单个文件最大大小

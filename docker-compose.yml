@@ -1,0 +1,41 @@
+version: '3.9'
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zhu-ai-agent-backend:latest
+    container_name: zhu-ai-agent-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SERVER_PORT: ${SERVER_PORT:-8123}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://host.docker.internal:5432/hdz_ai_agent}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-hdz}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen3.5:4b}
+      DASHSCOPE_EMBEDDING_MODEL: ${DASHSCOPE_EMBEDDING_MODEL:-text-embedding-v4}
+      DASHSCOPE_EMBEDDING_DIMENSIONS: ${DASHSCOPE_EMBEDDING_DIMENSIONS:-1536}
+      DASHSCOPE_EMBEDDING_TEXT_TYPE: ${DASHSCOPE_EMBEDDING_TEXT_TYPE:-document}
+    ports:
+      - "8123:8123"
+    networks:
+      - zhu-net
+
+  frontend:
+    build:
+      context: /Users/huangdazhu/cursorProjects/zhu-ai-agent-frontend
+      dockerfile: Dockerfile
+    image: zhu-ai-agent-frontend:latest
+    container_name: zhu-ai-agent-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - zhu-net
+
+networks:
+  zhu-net:
+    driver: bridge
