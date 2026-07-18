@@ -27,9 +27,9 @@
 
 ## 关键目录
 
-- src/main/java/com/zhubao/zhuaiagent/controller：接口控制器
-- src/main/resources：配置文件与环境变量模板
-- docker-compose.yml：Docker Compose 启动配置
+- [src/main/java/com/zhubao/zhuaiagent/controller](src/main/java/com/zhubao/zhuaiagent/controller)：接口控制器
+- [src/main/resources](src/main/resources)：配置文件与环境变量模板
+- [docker-compose.yml](docker-compose.yml)：Docker Compose 启动配置
 
 ## 本地运行
 
@@ -91,7 +91,7 @@ docker compose up --build
 
 ## PDF文件上传
 这里以面试题作为模拟资料，内包含面试题及对应网站；
-- file/pdf/Java 基础面试题速记通关版 _ 面试刷题 mianshiya.com.pdf
+- [file/pdf](file/pdf)
 
 ## 常见问题
 ### Q: 镜像拉取失败 `no match for platform`
