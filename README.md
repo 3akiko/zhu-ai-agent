@@ -9,8 +9,8 @@
 
 ## 页面展示
 
-![](pic/首页.png)
-![](pic/对话页.png)
+![](file/pic/首页.png)
+![](file/pic/对话页.png)
 
 ## 主要能力
 
@@ -22,7 +22,7 @@
 ## 技术栈
 
 - **后端**：Spring Boot 3, Spring AI, PostgreSQL + pgvector, DashScope (通义千问)
-- **前端**：Vue 3 + Vite（ai生成，`zhu-ai-agent-frontend`）
+- **前端**：Vue 3 + Vite（ AI 生成，`zhu-ai-agent-frontend`）
 - **部署**：Docker, 阿里云 SAE + ACR
 
 ## 关键目录
@@ -88,6 +88,10 @@ docker compose up --build
 默认会启动后端容器和前端容器，端口映射如下：
 - 后端：8123
 - 前端：8080
+
+## PDF文件上传
+这里以面试题作为模拟资料，内包含面试题及对应网站；
+- file/pdf/Java 基础面试题速记通关版 _ 面试刷题 mianshiya.com.pdf
 
 ## 常见问题
 ### Q: 镜像拉取失败 `no match for platform`
